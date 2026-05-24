@@ -5,7 +5,7 @@ input { margin: 10px 0; padding: 10px; border-radius: 4px; border: none; }
 button { margin-top: 15px; padding: 10px; background: #1abc9c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
 a { color: #ecf0f1; text-align: center; margin-top: 15px; text-decoration: none; font-size: 0.9em; }
 .flash-msg {
-    background-color: #e74c3c; /* Мягкий красный цвет */
+    background-color: #e74c3c; 
     color: white;
     padding: 10px;
     border-radius: 4px;

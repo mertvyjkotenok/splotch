@@ -137,7 +137,7 @@ def manual_leave_room(ws, room_name, disconnect=False, to_main=False, new_room=N
     elif new_room:
         broadcast(room_name, 'chat_message', {'user': 'Система', 'text': f'Пользователь {username} перешел в комнату {new_room}'})
 
-# ДОБАВЛЕНО: Функция очистки истории отмен пользователя при новом действии
+# Функция очистки истории отмен пользователя при новом действии
 def clear_user_redo_history(room, username):
     if room in undone_history:
         undone_history[room] = [block for block in undone_history[room] if block['items'][0].get('user') != username]
@@ -259,7 +259,7 @@ def handle_ws(ws):
                                 break
                     
                     if last_action_id:
-                        # ДОБАВЛЕНО: Разделяем на то, что останется, и то, что отменяется
+                        # Разделяем на то, что останется, и то, что отменяется
                         to_keep = []
                         to_undo = []
                         for item in canvas_history[room]:
@@ -277,7 +277,7 @@ def handle_ws(ws):
                         
                         broadcast(room, 'canvas_state', canvas_history[room])
 
-            # ДОБАВЛЕНО: Обработка возврата отмененного действия
+            # Обработка возврата отмененного действия
             elif event == 'redo_action':
                 room = data['room']
                 if room in undone_history and undone_history[room]:

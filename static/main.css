@@ -42,7 +42,6 @@ body {
     flex-shrink: 0;
 }
 
-/* ИСПРАВЛЕНИЕ РАСТЯГИВАНИЯ: flex: 0 0 auto; не дает контейнерам менять размер */
 .tool-group { 
     display: flex; 
     align-items: center; 
@@ -117,7 +116,6 @@ input[type="text"], input[type="password"] {
     background: #2c3e50; border: 1px solid #455a64; color: white; padding: 10px; border-radius: 4px; margin-bottom: 8px; width: 100%; box-sizing: border-box;
 }
 
-/* СТИЛИ ДЛЯ КАСТОМНОГО МОДАЛЬНОГО ОКНА */
 .modal-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(0, 0, 0, 0.6); display: flex; justify-content: center;
