@@ -4,18 +4,6 @@
     <meta charset="UTF-8">
     <title>SPLOTCH - Графический редактор</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
-    <style>
-        .room-flash-msg {
-            background-color: #ff4d4d;
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 14px;
-        }
-    </style>
 </head>
 <body>
 
@@ -124,30 +112,34 @@
     let startX, startY;
     let zoom = 1;
     let mode = 'create';
-    
     let currentActionId = null;
 
+    //создание вебсокет соединения
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     const socket = new WebSocket(wsUrl);
 
+    //отправка событий на сервер
     function wsEmit(eventName, payload) {
         if (socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ event: eventName, data: payload }));
         }
     }
 
+    //обработчики событий
+    //при открытии соединения
     socket.onopen = () => {
-        const savedRoom = sessionStorage.getItem('currentRoom');
+        const savedRoom = sessionStorage.getItem('currentRoom'); //проверяем был ли пользователь в комнате до этого
         const savedPass = sessionStorage.getItem('roomPass');
         
         if (savedRoom && savedPass && savedRoom !== 'main') {
-            wsEmit('join_private', { room: savedRoom, password: savedPass });
+            wsEmit('join_private', { room: savedRoom, password: savedPass }); //если да то входим
         } else {
-            wsEmit('join_main', {});
+            wsEmit('join_main', {}); //иначе в главный зал
         }
     };
 
+    //вызывается при сообщении от сервера
     socket.onmessage = async (event) => {
         const msg = JSON.parse(event.data);
         const ev = msg.event;
@@ -159,7 +151,7 @@
             if(d.room === currentRoom) drawLocalShape(mainCtx, d);
         } else if (ev === 'draw_image') {
             if(d.room === currentRoom) drawImageOnCanvas(d.image_data, d.x || 0, d.y || 0);
-        } else if (ev === 'canvas_state') {
+        } else if (ev === 'canvas_state') { //холст полностью при входе в комнату
             mainCtx.clearRect(0,0,1200,800);
             for (const item of d) {
             if (item.type === 'image') {
@@ -172,7 +164,7 @@
             }
         } else if (ev === 'clear_canvas') {
             mainCtx.clearRect(0,0,1200,800);
-        } else if (ev === 'chat_state') {
+        } else if (ev === 'chat_state') { //чат при входе
             const m = document.getElementById('messages');
             m.innerHTML = '';
             if (d) {
@@ -187,10 +179,11 @@
             sessionStorage.setItem('currentRoom', d.room);
             if (window.lastAttemptedPass) {
                 sessionStorage.setItem('roomPass', window.lastAttemptedPass);
-            }
+            } //сохранение пароля для автоматического входа при перезагрузке
 
             wsEmit('leave_room_event', {room: currentRoom, to_main: false, new_room: d.room});
             currentRoom = d.room;
+            //переключение интерфейса
             document.getElementById('roomSelector').classList.add('hidden');
             document.getElementById('roomForm').classList.add('hidden');
             document.getElementById('activeRoomInfo').classList.remove('hidden');
@@ -204,7 +197,7 @@
             const color = d.user === 'Система' ? '#f1c40f' : '#1abc9c';
             m.innerHTML += `<div><b style="color:${color}">${d.user}:</b> ${d.text}</div>`;
             m.scrollTop = m.scrollHeight;
-        } else if (ev === 'error') {
+        } else if (ev === 'error') { //ошибка входа
             const errDiv = document.getElementById('roomError');
             errDiv.innerText = d.msg;
             errDiv.classList.remove('hidden');
@@ -214,20 +207,23 @@
     };
 
     function handleEnter(e, callback) { if (e.key === 'Enter') callback(); }
-    function handleRoomEnter(e) { if (e.key === 'Enter') document.getElementById('passInput').focus(); }
+    function handleRoomEnter(e) { if (e.key === 'Enter') document.getElementById('passInput').focus(); } //переключение на поле пароля
 
+    //переключение инструмента
     function setTool(t, btn) {
         tool = t;
         document.querySelectorAll('.t-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
     }
 
+    //изменение масштаба
     function changeZoom(val) {
         zoom = Math.max(0.2, Math.min(3, zoom + val));
         document.getElementById('zoomWrapper').style.transform = `scale(${zoom})`;
         document.getElementById('zoomVal').innerText = Math.round(zoom * 100) + '%';
     }
 
+    //асинхронное рисование
     function drawImageOnCanvas(dataUrl, x = 0, y = 0) {
         return new Promise((resolve) => {
             const img = new Image();
@@ -243,6 +239,7 @@
         });
     }
 
+    //выбор изображения
     document.getElementById('imgLoader').onchange = function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -251,18 +248,18 @@
         const MAX_SIZE = 1 * 1024 * 1024; 
         if (file.size > MAX_SIZE) {
             showAlertModal("Файл слишком большой! Пожалуйста, выберите изображение размером до 1 МБ.");
-            this.value = ''; // Сбрасываем выбор
+            this.value = ''; // сбрасываем выбор
             return;
         }
 
         const reader = new FileReader();
         reader.onload = async (ev) => {
-            const imageData = ev.target.result;
+            const imageData = ev.target.result; //тип файла+данные
             const actionId = Date.now().toString() + Math.random().toString();
             
-            await drawImageOnCanvas(imageData, 0, 0);
+            await drawImageOnCanvas(imageData, 0, 0); //локальная отрисовка
             
-            wsEmit('draw_image', { 
+            wsEmit('draw_image', { //отправка на  сервер
                 image_data: imageData, 
                 x: 0, y: 0, 
                 room: currentRoom, 
@@ -272,44 +269,48 @@
         reader.readAsDataURL(file);
     };
 
+    //сохранение содержимого холста в PNG
     function saveImage() {
-        const link = document.createElement('a');
-        link.download = 'splotch_art.png';
+        const link = document.createElement('a'); //создаем элемент
+        link.download = 'splotch_art.png'; //задаем имя
         const finalCanvas = document.createElement('canvas');
         finalCanvas.width = mainCanvas.width; finalCanvas.height = mainCanvas.height;
         const fCtx = finalCanvas.getContext('2d');
         fCtx.fillStyle = '#ffffff'; fCtx.fillRect(0,0, finalCanvas.width, finalCanvas.height);
         fCtx.drawImage(mainCanvas, 0, 0);
-        link.href = finalCanvas.toDataURL();
-        link.click();
+        link.href = finalCanvas.toDataURL(); //получаем DataURL изображения
+        link.click(); //имитируем клик для скачивания
     }
 
+    //отмена и возвращение
     function undoLastAction() { wsEmit('undo_action', { room: currentRoom }); }
-    
     function redoLastAction() { wsEmit('redo_action', { room: currentRoom }); }
 
+    //модальное окно очистки и обработчик подтверждения
     function showClearModal() { document.getElementById('clearModal').classList.remove('hidden'); }
     function confirmClear(isYes) {
         document.getElementById('clearModal').classList.add('hidden');
         if (isYes) wsEmit('clear_canvas', { room: currentRoom });
     }
     
-    // Функции для показа и скрытия окна уведомлений
+    // функции для показа и скрытия окна уведомлений
     function showAlertModal(msg) {
         document.getElementById('alertModalMessage').innerText = msg;
         document.getElementById('alertModal').classList.remove('hidden');
     }
-
     function closeAlertModal() {
         document.getElementById('alertModal').classList.add('hidden');
     }
 
+    //обработчики мыши
+    //нажатие кнопки мыши
     tempCanvas.onmousedown = (e) => {
         drawing = true;
         startX = e.offsetX;
         startY = e.offsetY;
-        currentActionId = Date.now().toString() + Math.random().toString(); 
+        currentActionId = Date.now().toString() + Math.random().toString(); //новый actionId для группировки отрезков одной линии
         
+        //заливку делаем сразу
         if (tool === 'fill') {
             const colorHex = document.getElementById('colorPicker').value;
             const rgb = hexToRgb(colorHex);
@@ -321,27 +322,29 @@
         }
     };
 
+    //если кнопка зажата
     tempCanvas.onmousemove = (e) => {
         if (!drawing) return;
         const x = e.offsetX;
         const y = e.offsetY;
-        const color = (tool === 'eraser') ? '#ffffff' : document.getElementById('colorPicker').value;
-        const size = document.getElementById('sizeSlider').value;
+        const color = (tool === 'eraser') ? '#ffffff' : document.getElementById('colorPicker').value; //белый цвет для ластика
+        const size = document.getElementById('sizeSlider').value; //толщина линии
         
-        if (tool === 'brush' || tool === 'eraser') {
+        if (tool === 'brush' || tool === 'eraser') { //линию отправляем в процессе рисования
             drawLocalLine(mainCtx, startX, startY, x, y, color, size);
             wsEmit('draw_line', { x0: startX, y0: startY, x1: x, y1: y, room: currentRoom, color: color, size: size, action_id: currentActionId });
             startX = x; startY = y;
-        } else {
+        } else { //для фигур предпросмотр
             tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
             drawLocalShape(tempCtx, { type: tool, x0: startX, y0: startY, x1: x, y1: y, color: color, size: size });
         }
     };
 
+    //отпускание кнопки
     tempCanvas.onmouseup = (e) => {
         if (!drawing) return;
         drawing = false;
-        if (tool !== 'brush' && tool !== 'eraser' && tool !== 'fill') {
+        if (tool !== 'brush' && tool !== 'eraser' && tool !== 'fill') { //если была фигура то ее рисование закончилось, отправляем
             const color = document.getElementById('colorPicker').value;
             const size = document.getElementById('sizeSlider').value;
             const data = { type: tool, x0: startX, y0: startY, x1: e.offsetX, y1: e.offsetY, color: color, size: size, room: currentRoom, action_id: currentActionId };
@@ -351,6 +354,7 @@
         }
     };
 
+    //рисование линии
     function drawLocalLine(ctx, x0, y0, x1, y1, color, size) {
         ctx.strokeStyle = color;
         ctx.lineWidth = size;
@@ -358,9 +362,9 @@
         ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
     }
 
+    //рисование фигуры
     function drawLocalShape(ctx, d) {
         if (d.type === 'flood_fill') { const rgb = hexToRgb(d.color); if(rgb) floodFill(ctx, d.x, d.y, rgb); return; }
-        if (d.type === 'fill_rect') { ctx.fillStyle = d.color; ctx.fillRect(d.x0, d.y0, d.x1 - d.x0, d.y1 - d.y0); return; }
         
         ctx.strokeStyle = d.color;
         ctx.lineWidth = d.size;
@@ -376,25 +380,30 @@
         ctx.stroke();
     }
 
+    //преобразование формата цвета
     function hexToRgb(hex) {
         var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
         return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16), a: 255 } : null;
     }
 
+    //заливка
     function floodFill(ctx, startX, startY, fillColorRGB) {
         const canvasWidth = ctx.canvas.width;
         const canvasHeight = ctx.canvas.height;
         const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
         const data = imgData.data;
 
+        //определяем начальный пиксель
         const startPos = (startY * canvasWidth + startX) * 4;
         const startR = data[startPos];
         const startG = data[startPos + 1];
         const startB = data[startPos + 2];
         const startA = data[startPos + 3];
 
+        //если цвет такой же как был ничего не делаем
         if (startR === fillColorRGB.r && startG === fillColorRGB.g && startB === fillColorRGB.b && startA === fillColorRGB.a) return;
 
+        //то же самое с допуском по цвету
         const tolerance = 60; 
         const matchStartColor = (pos) => {
             return Math.abs(data[pos] - startR) <= tolerance &&
@@ -403,8 +412,10 @@
                    Math.abs(data[pos + 3] - startA) <= tolerance;
         };
         
+        //закрашивание пикселя
         const colorPixel = (pos) => { data[pos] = fillColorRGB.r; data[pos + 1] = fillColorRGB.g; data[pos + 2] = fillColorRGB.b; data[pos + 3] = 255; };
 
+        //стек для обработки пикселей
         const pixelStack = [[startX, startY]];
         while (pixelStack.length) {
             const newPos = pixelStack.pop();
@@ -435,42 +446,54 @@
         ctx.putImageData(imgData, 0, 0);
     }
 
+    //скрытие ошибки при входе
     function hideError() { document.getElementById('roomError').classList.add('hidden'); }
 
+    //переключение форм входа и создания
     function toggleForm(m) { 
-        hideError();
+        hideError(); //скрываем ошибку
         const form = document.getElementById('roomForm');
         const btnCreate = document.getElementById('btnCreate');
         const btnJoin = document.getElementById('btnJoin');
-        if (form.classList.contains('hidden')) { form.classList.remove('hidden'); } 
-        else if (mode === m) {
+        if (form.classList.contains('hidden')) { form.classList.remove('hidden'); } //если скрыта показываем
+        else if (mode === m) { //если повторный клик то скрываем
             form.classList.add('hidden');
             btnCreate.classList.remove('btn-active');
             btnJoin.classList.remove('btn-active');
             mode = ''; return;
         }
-        if (m === 'create') { btnCreate.classList.add('btn-active'); btnJoin.classList.remove('btn-active'); } 
-        else { btnJoin.classList.add('btn-active'); btnCreate.classList.remove('btn-active'); }
+        if (m === 'create') { //устанавливаем активную кнопку
+            btnCreate.classList.add('btn-active'); 
+            btnJoin.classList.remove('btn-active'); 
+        } 
+        else { 
+            btnJoin.classList.add('btn-active'); 
+            btnCreate.classList.remove('btn-active'); 
+        }
         mode = m;
     }
 
+    //запрос на создание или вход
     function submitRoom() {
         hideError();
         const r = document.getElementById('roomInput').value;
         const p = document.getElementById('passInput').value;
-        if (r && p) {
+        if (r && p) { //заполненность полей
             window.lastAttemptedPass = p;
+            //отправляем запрос в зависимости от режима
             wsEmit(mode === 'create' ? 'create_room' : 'join_private', {room: r, password: p});
         }
     }
 
+    //выход в общий зал
     function leaveToMain() {
-        sessionStorage.removeItem('currentRoom');
+        sessionStorage.removeItem('currentRoom'); //удаляем сохраненные комнату и пароль
         sessionStorage.removeItem('roomPass');
-
+        //выходим из комнаты и входим в общий зал
         wsEmit('leave_room_event', {room: currentRoom, to_main: true});
         currentRoom = 'main'; 
         wsEmit('join_main', {});
+        //переключение интерфейса
         document.getElementById('roomSelector').classList.remove('hidden');
         document.getElementById('activeRoomInfo').classList.add('hidden');
         document.getElementById('statusValue').innerText = 'В общем зале';
@@ -479,12 +502,17 @@
         document.getElementById('roomForm').classList.add('hidden');
     }
 
+    //отправка сообщения
     function sendMsg() {
         const inp = document.getElementById('msgInput');
-        if (inp.value) { wsEmit('chat_message', {text: inp.value, room: currentRoom}); inp.value = ''; }
+        if (inp.value) { 
+            wsEmit('chat_message', {text: inp.value, room: currentRoom}); 
+            inp.value = ''; 
+        }
     }
 
-    //Это событие срабатывает в браузере за мгновение до того, как страница начнет выгружаться (при закрытии вкладки, обновлении страницы или переходе по внешней ссылке).
+    //закрытие вебсокет 
+    // событие срабатывает в браузере за мгновение до того, как страница начнет выгружаться (при закрытии вкладки, обновлении страницы или переходе по внешней ссылке).
     window.addEventListener('beforeunload', () => {
     // Проверяем, открыто ли еще соединение
     if (socket.readyState === WebSocket.OPEN) {
